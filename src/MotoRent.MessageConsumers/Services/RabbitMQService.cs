@@ -1,5 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
+using MotoRent.MessageConsumers.Events;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using System.Text;
 using System.Text.Json;
 
@@ -63,6 +65,33 @@ namespace MotoRent.MessageConsumers.Services
             }
 
             await Task.CompletedTask;
+        }
+
+        public async Task<IMotorcycleCreatedEvent> ReceiveAsync(string topic, CancellationToken cancellationToken)
+        {
+            using (var connection = _factory.CreateConnection())
+            using (var channel = connection.CreateModel())
+            {
+                channel.QueueDeclare(queue: topic, durable: false, exclusive: false, autoDelete: false, arguments: null);
+
+                var consumer = new EventingBasicConsumer(channel);
+                var tcs = new TaskCompletionSource<IMotorcycleCreatedEvent>();
+
+                consumer.Received += (model, ea) =>
+                {
+                    var body = ea.Body.ToArray();
+                    var message = Encoding.UTF8.GetString(body);
+                    var motorcycleCreatedEvent = JsonSerializer.Deserialize<MotorcycleCreatedEvent>(message);
+                    tcs.SetResult(motorcycleCreatedEvent);
+                };
+
+                var consumerTag = channel.BasicConsume(queue: topic, autoAck: true, consumer: consumer);
+
+                using (cancellationToken.Register(() => channel.BasicCancel(consumerTag)))
+                {
+                    return await tcs.Task;
+                }
+            }
         }
     }
 }

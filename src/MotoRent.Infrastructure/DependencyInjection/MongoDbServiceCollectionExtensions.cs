@@ -12,6 +12,7 @@ namespace MotoRent.Infrastructure.DependencyInjection
             services.AddScoped<IMotorcycleRepository, MotorcycleRepository>();
             services.AddScoped<IDeliverymanRepository, DeliverymanRepository>();
             services.AddScoped<IRentalRepository, RentalRepository>();
+            services.AddScoped<INotificationRepository, NotificationRepository>();
 
             return services;
         }

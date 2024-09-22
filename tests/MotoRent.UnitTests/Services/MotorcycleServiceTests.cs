@@ -7,272 +7,280 @@ using MotoRent.Application.DTOs.Motorcycle;
 using MotoRent.Application.Services;
 using MotoRent.Infrastructure.Data.Interfaces;
 using MotoRent.Infrastructure.Data.Models;
+using MotoRent.MessageConsumers.Events;
 using MotoRent.MessageConsumers.Services;
 
-namespace MotoRent.UnitTests.Services
+namespace MotoRent.UnitTests.Services;
+
+public class MotorcycleServiceTests
 {
-    public class MotorcycleServiceTests
+    private readonly Mock<IMotorcycleRepository> _mockRepository;
+    private readonly Mock<IRentalRepository> _mockRentalRepository;
+    private readonly Mock<IMapper> _mockMapper;
+    private readonly Mock<IValidator<CreateMotorcycleDto>> _mockValidator;
+    private readonly Mock<ILogger<MotorcycleService>> _mockLogger;
+    private readonly Mock<IMessageService> _mockMessageService;
+    private readonly MotorcycleService _service;
+
+    public MotorcycleServiceTests()
     {
-        private readonly Mock<IMotorcycleRepository> _mockRepository;
-        private readonly Mock<IRentalRepository> _rentalRepository;
-        private readonly Mock<IMapper> _mockMapper;
-        private readonly Mock<IValidator<CreateMotorcycleDto>> _mockValidator;
-        private readonly Mock<ILogger<MotorcycleService>> _mockLogger;
-        private readonly MotorcycleService _service;
-        private readonly Mock<IMessageService> _messageService;
+        _mockRepository = new Mock<IMotorcycleRepository>();
+        _mockRentalRepository = new Mock<IRentalRepository>();
+        _mockMapper = new Mock<IMapper>();
+        _mockValidator = new Mock<IValidator<CreateMotorcycleDto>>();
+        _mockLogger = new Mock<ILogger<MotorcycleService>>();
+        _mockMessageService = new Mock<IMessageService>();
+        _service = new MotorcycleService(
+            _mockRepository.Object,
+            _mockMapper.Object,
+            _mockValidator.Object,
+            _mockLogger.Object,
+            _mockMessageService.Object,
+            _mockRentalRepository.Object
+        );
+    }
 
-        public MotorcycleServiceTests()
-        {
-            _mockRepository = new Mock<IMotorcycleRepository>();
-            _rentalRepository = new Mock<IRentalRepository>();
-            _mockMapper = new Mock<IMapper>();
-            _mockValidator = new Mock<IValidator<CreateMotorcycleDto>>();
-            _mockLogger = new Mock<ILogger<MotorcycleService>>();
-            _messageService = new Mock<IMessageService>();
-            _service = new MotorcycleService(
-                _mockRepository.Object,
-                _mockMapper.Object,
-                _mockValidator.Object,
-                _mockLogger.Object,
-                _messageService.Object, _rentalRepository.Object
-            );
-        }
-
-        [Fact]
-        public async Task CreateMotorcycleAsync_ValidDto_ReturnsCreatedMotorcycle()
-        {
-            var identifier = "MOTO123";
-            var year = 2023;
-            var model = "TestModel";
-            var licensePlate = "ABC-1234";
-
-            var createDto = new CreateMotorcycleDto
-            {
-                Identifier = identifier,
-                Year = year,
-                Model = model,
-                LicensePlate = licensePlate
-            };
-
-            var motorcycleModel = new MotorcycleModel
-            {
-                Identifier = identifier,
-                Year = year,
-                Model = model,
-                LicensePlate = licensePlate
-            };
-
-            var motorcycleDto = new MotorcycleDto
-            {
-                Identifier = identifier,
-                Year = year,
-                Model = model,
-                LicensePlate = licensePlate
-            };
-
-            _mockValidator.Setup(v => v.ValidateAsync(createDto, default))
-                .ReturnsAsync(new FluentValidation.Results.ValidationResult());
-
-            _mockMapper.Setup(m => m.Map<MotorcycleModel>(createDto)).Returns(motorcycleModel);
-            _mockMapper.Setup(m => m.Map<MotorcycleDto>(motorcycleModel)).Returns(motorcycleDto);
-
-            _mockRepository.Setup(r => r.CreateAsync(motorcycleModel)).ReturnsAsync(motorcycleModel);
-
-            var result = await _service.CreateMotorcycleAsync(createDto);
-
-            result.Should().NotBeNull();
-            result.Should().BeEquivalentTo(motorcycleDto, options => options.ExcludingMissingMembers());
-
-            _mockRepository.Verify(r => r.CreateAsync(It.IsAny<MotorcycleModel>()), Times.Once);
-            _mockValidator.Verify(v => v.ValidateAsync(createDto, default), Times.Once);
-        }
-
-
-        [Fact]
-        public async Task GetMotorcycleByIdAsync_ExistingId_ReturnsMotorcycle()
-        {
-            var motorcycleId = "1";
-            var identifier = "MOTO123";
-            var year = 2023;
-            var model = "TestModel";
-            var licensePlate = "ABC-1234";
-
-            var motorcycleModel = new MotorcycleModel
-            {
-                Id = motorcycleId,
-                Identifier = identifier,
-                Year = year,
-                Model = model,
-                LicensePlate = licensePlate
-            };
-
-            var motorcycleDto = new MotorcycleDto
-            {
-                Identifier = identifier,
-                Year = year,
-                Model = model,
-                LicensePlate = licensePlate
-            };
-
-            _mockRepository.Setup(r => r.GetByIdAsync(motorcycleId))
-                .ReturnsAsync(motorcycleModel);
-
-            _mockMapper.Setup(m => m.Map<MotorcycleDto>(motorcycleModel))
-                .Returns(motorcycleDto);
-
-            var result = await _service.GetMotorcycleByIdAsync(motorcycleId);
-
-            result.Should().NotBeNull();
-            result.Should().BeEquivalentTo(motorcycleDto, options => options.ExcludingMissingMembers());
-
-            _mockRepository.Verify(r => r.GetByIdAsync(motorcycleId), Times.Once);
-        }
-
-
-        [Fact]
-        public async Task GetMotorcycleByIdAsync_NonExistingId_ThrowsArgumentException()
-        {
-            var nonExistingId = "999";
-
-            _mockRepository.Setup(r => r.GetByIdAsync(nonExistingId))
-                .ReturnsAsync((MotorcycleModel)null);
-
-            var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
-                await _service.GetMotorcycleByIdAsync(nonExistingId));
-
-            exception.Message.Should().Contain("Motorcycle not found");
-
-            _mockRepository.Verify(r => r.GetByIdAsync(nonExistingId), Times.Once);
-        }
-
-
-        [Fact]
-        public async Task GetAllMotorcyclesAsync_ReturnsAllMotorcycles()
-        {
-            var motorcycles = new List<MotorcycleModel>
+    [Fact]
+    public async Task CreateMotorcycleAsync_ValidDto_ReturnsCreatedMotorcycle()
     {
-        new MotorcycleModel { Id = "1", Identifier = "MOTO1", Year = 2023, Model = "Model1", LicensePlate = "ABC-1234" },
-        new MotorcycleModel { Id = "2", Identifier = "MOTO2", Year = 2022, Model = "Model2", LicensePlate = "DEF-5678" }
-    };
 
-            var motorcycleDtos = new List<MotorcycleDto>
+        var createDto = new CreateMotorcycleDto
+        {
+            Identifier = "MOTO123",
+            Year = 2023,
+            Model = "TestModel",
+            LicensePlate = "ABC-1234"
+        };
+
+        var motorcycleModel = new MotorcycleModel
+        {
+            Identifier = "MOTO123",
+            Year = 2023,
+            Model = "TestModel",
+            LicensePlate = "ABC-1234"
+        };
+
+        var motorcycleDto = new MotorcycleDto
+        {
+            Identifier = "MOTO123",
+            Year = 2023,
+            Model = "TestModel",
+            LicensePlate = "ABC-1234"
+        };
+
+        _mockValidator.Setup(v => v.ValidateAsync(createDto, default))
+            .ReturnsAsync(new FluentValidation.Results.ValidationResult());
+
+        _mockMapper.Setup(m => m.Map<MotorcycleModel>(createDto)).Returns(motorcycleModel);
+        _mockMapper.Setup(m => m.Map<MotorcycleDto>(motorcycleModel)).Returns(motorcycleDto);
+
+        _mockRepository.Setup(r => r.CreateAsync(motorcycleModel)).ReturnsAsync(motorcycleModel);
+
+        _mockMessageService.Setup(m => m.PublishAsync(It.IsAny<string>(), It.IsAny<MotorcycleCreatedEvent>()))
+            .Returns(Task.CompletedTask);
+
+
+        var result = await _service.CreateMotorcycleAsync(createDto);
+
+
+        result.Should().NotBeNull();
+        result.Should().BeEquivalentTo(motorcycleDto);
+        _mockRepository.Verify(r => r.CreateAsync(It.IsAny<MotorcycleModel>()), Times.Once);
+        _mockMessageService.Verify(m => m.PublishAsync(It.IsAny<string>(), It.IsAny<MotorcycleCreatedEvent>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMotorcycleByIdAsync_ExistingId_ReturnsMotorcycle()
     {
-        new MotorcycleDto { Identifier = "MOTO1", Year = 2023, Model = "Model1", LicensePlate = "ABC-1234" },
-        new MotorcycleDto { Identifier = "MOTO2", Year = 2022, Model = "Model2", LicensePlate = "DEF-5678" }
-    };
 
-            _mockRepository.Setup(r => r.GetAllAsync())
-                .ReturnsAsync(motorcycles);
-
-            _mockMapper.Setup(m => m.Map<IEnumerable<MotorcycleDto>>(motorcycles))
-                .Returns(motorcycleDtos);
-
-            var result = await _service.GetAllMotorcyclesAsync();
-
-            result.Should().NotBeNull();
-            result.Should().HaveCount(motorcycleDtos.Count);
-            result.Should().BeEquivalentTo(motorcycleDtos);
-
-            _mockRepository.Verify(r => r.GetAllAsync(), Times.Once);
-        }
-
-
-        [Fact]
-        public async Task UpdateMotorcycleLicensePlateAsync_ValidId_UpdatesLicensePlate()
+        var motorcycleId = "MOTO123";
+        var motorcycleModel = new MotorcycleModel
         {
-            var motorcycleId = "1";
-            var oldLicensePlate = "ABC-1234";
-            var newLicensePlate = "XYZ-9876";
+            Identifier = motorcycleId,
+            Year = 2023,
+            Model = "TestModel",
+            LicensePlate = "ABC-1234"
+        };
 
-            var updateLicensePlateDto = new UpdateLicensePlateDto { LicensePlate = newLicensePlate };
-
-            var existingMotorcycle = new MotorcycleModel
-            {
-                Id = motorcycleId,
-                Identifier = "MOTO1",
-                Year = 2023,
-                Model = "TestModel",
-                LicensePlate = oldLicensePlate
-            };
-
-            _mockRepository.Setup(r => r.GetByIdAsync(motorcycleId))
-                .ReturnsAsync(existingMotorcycle);
-
-            _mockRepository.Setup(r => r.UpdateAsync(motorcycleId, It.IsAny<MotorcycleModel>()))
-                .Returns(Task.CompletedTask);
-
-            await _service.UpdateMotorcycleLicensePlateAsync(motorcycleId, updateLicensePlateDto);
-
-            _mockRepository.Verify(r => r.GetByIdAsync(motorcycleId), Times.Once);
-
-            _mockRepository.Verify(r => r.UpdateAsync(motorcycleId,
-                It.Is<MotorcycleModel>(m =>
-                    m.LicensePlate == newLicensePlate)), Times.Once);
-        }
-
-
-        [Fact]
-        public async Task UpdateMotorcycleLicensePlateAsync_InvalidId_ThrowsArgumentException()
+        var motorcycleDto = new MotorcycleDto
         {
-            var invalidId = "999";
-            var newLicensePlate = "XYZ-9876";
-            var updateLicensePlateDto = new UpdateLicensePlateDto { LicensePlate = newLicensePlate };
+            Identifier = motorcycleId,
+            Year = 2023,
+            Model = "TestModel",
+            LicensePlate = "ABC-1234"
+        };
 
-            _mockRepository.Setup(r => r.GetByIdAsync(invalidId))
-                .ReturnsAsync((MotorcycleModel)null);
+        _mockRepository.Setup(r => r.GetByFieldStringAsync("identifier", motorcycleId))
+            .ReturnsAsync(motorcycleModel);
 
-            var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
-                await _service.UpdateMotorcycleLicensePlateAsync(invalidId, updateLicensePlateDto));
-
-            exception.Message.Should().Contain("Motorcycle not found");
-
-            _mockRepository.Verify(r => r.GetByIdAsync(invalidId), Times.Once);
-            _mockRepository.Verify(r => r.UpdateAsync(It.IsAny<string>(), It.IsAny<MotorcycleModel>()), Times.Never);
-        }
+        _mockMapper.Setup(m => m.Map<MotorcycleDto>(motorcycleModel))
+            .Returns(motorcycleDto);
 
 
-        [Fact]
-        public async Task DeleteMotorcycleAsync_ExistingId_DeletesMotorcycle()
-        {
-            var motorcycleId = "1";
-
-            _mockRepository.Setup(r => r.DeleteAsync(motorcycleId))
-                .Returns(Task.CompletedTask);
-
-            await _service.DeleteMotorcycleAsync(motorcycleId);
-
-            _mockRepository.Verify(r => r.DeleteAsync(motorcycleId), Times.Once);
-        }
+        var result = await _service.GetMotorcycleByIdAsync(motorcycleId);
 
 
-        [Fact]
-        public async Task GetMotorcyclesByLicensePlateAsync_ExistingLicensePlate_ReturnsMotorcycles()
-        {
-            var licensePlate = "ABC-1234";
-            var motorcycles = new List<MotorcycleModel>
+        result.Should().NotBeNull();
+        result.Should().BeEquivalentTo(motorcycleDto);
+        _mockRepository.Verify(r => r.GetByFieldStringAsync("identifier", motorcycleId), Times.Once);
+    }
+
+
+    [Fact]
+    public async Task CreateMotorcycleAsync_ValidDto_CreatesMotorcycleAndPublishesEvent()
     {
-        new MotorcycleModel { Id = "1", Identifier = "MOTO1", Year = 2023, Model = "Model1", LicensePlate = licensePlate }
-    };
 
-            var motorcycleDtos = new List<MotorcycleDto>
+        var createDto = new CreateMotorcycleDto
+        {
+            Identifier = "MOTO123",
+            Year = 2023,
+            Model = "TestModel",
+            LicensePlate = "ABC-1234"
+        };
+
+        var motorcycleModel = new MotorcycleModel
+        {
+            Identifier = "MOTO123",
+            Year = 2023,
+            Model = "TestModel",
+            LicensePlate = "ABC-1234"
+        };
+
+        _mockValidator.Setup(v => v.ValidateAsync(createDto, default))
+            .ReturnsAsync(new FluentValidation.Results.ValidationResult());
+
+        _mockRepository.Setup(r => r.GetByLicensePlateAsync(createDto.LicensePlate))
+            .ReturnsAsync(new List<MotorcycleModel>());
+
+        _mockMapper.Setup(m => m.Map<MotorcycleModel>(createDto)).Returns(motorcycleModel);
+        _mockMapper.Setup(m => m.Map<MotorcycleDto>(motorcycleModel)).Returns(new MotorcycleDto());
+
+        _mockRepository.Setup(r => r.CreateAsync(It.IsAny<MotorcycleModel>()))
+            .ReturnsAsync(motorcycleModel);
+
+
+        var result = await _service.CreateMotorcycleAsync(createDto);
+
+
+        result.Should().NotBeNull();
+        _mockRepository.Verify(r => r.CreateAsync(It.IsAny<MotorcycleModel>()), Times.Once);
+        _mockMessageService.Verify(m => m.PublishAsync("motorcycle-created", It.IsAny<MotorcycleCreatedEvent>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateMotorcycleAsync_DuplicateLicensePlate_ThrowsArgumentException()
     {
-        new MotorcycleDto { Identifier = "MOTO1", Year = 2023, Model = "Model1", LicensePlate = licensePlate }
-    };
 
-            _mockRepository.Setup(r => r.GetByLicensePlateAsync(licensePlate))
-                .ReturnsAsync(motorcycles);
+        var createDto = new CreateMotorcycleDto
+        {
+            Identifier = "MOTO123",
+            Year = 2023,
+            Model = "TestModel",
+            LicensePlate = "ABC-1234"
+        };
 
-            _mockMapper.Setup(m => m.Map<IEnumerable<MotorcycleDto>>(motorcycles))
-                .Returns(motorcycleDtos);
+        _mockValidator.Setup(v => v.ValidateAsync(createDto, default))
+            .ReturnsAsync(new FluentValidation.Results.ValidationResult());
 
-            var result = await _service.GetMotorcyclesByLicensePlateAsync(licensePlate);
+        _mockRepository.Setup(r => r.GetByLicensePlateAsync(createDto.LicensePlate))
+            .ReturnsAsync(new List<MotorcycleModel> { new MotorcycleModel() });
 
-            result.Should().NotBeNull();
-            result.Should().HaveCount(motorcycleDtos.Count);
-            result.Should().BeEquivalentTo(motorcycleDtos);
 
-            _mockRepository.Verify(r => r.GetByLicensePlateAsync(licensePlate), Times.Once);
-        }
+        await _service.Invoking(s => s.CreateMotorcycleAsync(createDto))
+            .Should().ThrowAsync<ArgumentException>()
+            .WithMessage("Já existe uma moto cadastrada com esta placa. Por favor, verifique e tente novamente com uma placa diferente.");
+    }
 
+    [Fact]
+    public async Task GetAllMotorcyclesAsync_WithLicensePlateFilter_ReturnsFilteredMotorcycles()
+    {
+
+        var licensePlate = "ABC-1234";
+        var motorcycles = new List<MotorcycleModel>
+        {
+            new MotorcycleModel { Identifier = "MOTO123", LicensePlate = licensePlate },
+            new MotorcycleModel { Identifier = "MOTO456", LicensePlate = "XYZ-5678" }
+        };
+
+        _mockRepository.Setup(r => r.GetByLicensePlateAsync(licensePlate))
+            .ReturnsAsync(motorcycles.Where(m => m.LicensePlate == licensePlate).ToList());
+
+        _mockMapper.Setup(m => m.Map<IEnumerable<MotorcycleDto>>(It.IsAny<IEnumerable<MotorcycleModel>>()))
+            .Returns((IEnumerable<MotorcycleModel> models) => models.Select(model => new MotorcycleDto { Identifier = model.Identifier, LicensePlate = model.LicensePlate }));
+
+
+        var result = await _service.GetMotorcyclesByLicensePlateAsync(licensePlate);
+
+
+        result.Should().NotBeNull();
+        result.Should().HaveCount(1);
+        result.First().LicensePlate.Should().Be(licensePlate);
+    }
+
+    [Fact]
+    public async Task UpdateMotorcycleLicensePlateAsync_ValidData_UpdatesLicensePlate()
+    {
+
+        var motorcycleId = "MOTO123";
+        var updateDto = new UpdateLicensePlateDto { LicensePlate = "XYZ-5678" };
+        var existingMotorcycle = new MotorcycleModel
+        {
+            Identifier = motorcycleId,
+            LicensePlate = "ABC-1234"
+        };
+
+        _mockRepository.Setup(r => r.GetByFieldStringAsync("identifier", motorcycleId))
+            .ReturnsAsync(existingMotorcycle);
+
+        _mockRepository.Setup(r => r.UpdateAsync(It.IsAny<string>(), It.IsAny<MotorcycleModel>()))
+            .Returns(Task.CompletedTask);
+
+
+        await _service.UpdateMotorcycleLicensePlateAsync(motorcycleId, updateDto);
+
+
+        _mockRepository.Verify(r => r.UpdateAsync(It.IsAny<string>(), It.Is<MotorcycleModel>(m => m.LicensePlate == updateDto.LicensePlate)), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteMotorcycleAsync_NoAssociatedRentals_DeletesMotorcycle()
+    {
+
+        var motorcycleId = "MOTO123";
+        var existingMotorcycle = new MotorcycleModel { Identifier = motorcycleId };
+
+        _mockRepository.Setup(r => r.GetByFieldStringAsync("identifier", motorcycleId))
+            .ReturnsAsync(existingMotorcycle);
+
+        _mockRentalRepository.Setup(r => r.ExistsForMotorcycleAsync(motorcycleId))
+            .ReturnsAsync(false);
+
+        _mockRepository.Setup(r => r.DeleteAsync(It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+
+
+        await _service.DeleteMotorcycleAsync(motorcycleId);
+
+
+        _mockRepository.Verify(r => r.DeleteAsync(It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteMotorcycleAsync_WithAssociatedRentals_ThrowsInvalidOperationException()
+    {
+
+        var motorcycleId = "MOTO123";
+        var existingMotorcycle = new MotorcycleModel { Identifier = motorcycleId };
+
+        _mockRepository.Setup(r => r.GetByFieldStringAsync("identifier", motorcycleId))
+            .ReturnsAsync(existingMotorcycle);
+
+        _mockRentalRepository.Setup(r => r.ExistsForMotorcycleAsync(motorcycleId))
+            .ReturnsAsync(true);
+
+
+        await _service.Invoking(s => s.DeleteMotorcycleAsync(motorcycleId))
+            .Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Não é possível remover a moto pois existem locações associadas a ela.");
     }
 }

@@ -12,8 +12,8 @@ namespace MotoRent.MessageConsumers.Consumers
 
         public MotorcycleCreatedConsumer(INotificationRepository notificationRepository, ILogger<MotorcycleCreatedConsumer> logger)
         {
-            _notificationRepository = notificationRepository;
-            _logger = logger;
+            _notificationRepository = notificationRepository ?? throw new ArgumentNullException(nameof(notificationRepository));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task ConsumeAsync(IMotorcycleCreatedEvent @event)
@@ -22,13 +22,13 @@ namespace MotoRent.MessageConsumers.Consumers
             {
                 var notification = new NotificationModel
                 {
-                    Message = $"New 2024 motorcycle created: {@event.Model} (Plate: {@event.LicensePlate})",
+                    Message = $"Nova moto de 2024 criada: {@event.Model} (Placa: {@event.LicensePlate})",
                     CreatedAt = DateTime.UtcNow
                 };
 
                 await _notificationRepository.CreateAsync(notification);
 
-                _logger.LogInformation("Notification created for 2024 motorcycle: {@Notification}", notification);
+                _logger.LogInformation("Notificação criada para moto de 2024: {@Notification}", notification);
             }
         }
     }

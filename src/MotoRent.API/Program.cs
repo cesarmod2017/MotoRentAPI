@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using MotoRent.API.BackgroundServices;
 using MotoRent.Application.Config;
 using MotoRent.Application.DependencyInjection;
 using MotoRent.Application.Filters;
@@ -12,6 +13,7 @@ using MotoRent.Infrastructure.Data;
 using MotoRent.Infrastructure.Data.Config;
 using MotoRent.Infrastructure.Data.Interfaces;
 using MotoRent.Infrastructure.DependencyInjection;
+using MotoRent.MessageConsumers.Consumers;
 using RabbitMQ.Client;
 using Serilog;
 using Serilog.Events;
@@ -96,6 +98,10 @@ builder.Services.AddSwaggerGen(c =>
 
     c.IncludeXmlComments(xmlPath);
 });
+
+builder.Services.AddHostedService<MotorcycleCreatedBackgroundService>();
+// Consumer Rabbit
+builder.Services.AddScoped<IMotorcycleCreatedConsumer, MotorcycleCreatedConsumer>();
 
 // Add MongoDB services and repositories
 builder.Services.Configure<MongoDbConfig>(builder.Configuration.GetSection("MongoDB"));

@@ -17,6 +17,67 @@ Este projeto é uma solução robusta para gerenciamento de aluguel de motos e e
 
 - **Minio**: Solução de armazenamento compatível com S3 para guardar imagens de forma segura e eficiente.
 
+- **Serilog**: Biblioteca de logging utilizada para registrar eventos e erros de forma estruturada, facilitando o monitoramento e a resolução de problemas.
+
+## Arquitetura do Projeto
+
+ - O projeto segue os princípios da Clean Architecture, dividindo-se em camadas bem definidas para garantir a separação de responsabilidades, facilitar a manutenção e permitir a evolução do sistema. Abaixo, detalhamos cada camada e seu propósito:
+
+### MotoRent.API:
+
+ - Esta é a camada de apresentação, responsável por expor os endpoints da API RESTful.
+ - Aqui estão definidos os controllers que lidam com as requisições HTTP.
+ - Utiliza middleware para tratamento global de exceções, garantindo respostas consistentes em caso de erros.
+
+
+### MotoRent.Application:
+
+ - Contém a lógica de negócios e os casos de uso do sistema.
+ - Implementa os serviços que orquestram as operações de negócio.
+ - Utiliza DTOs (Data Transfer Objects) para comunicação entre camadas.
+ - Implementa validações usando FluentValidation para garantir a integridade dos dados.
+
+
+### MotoRent.Infrastructure:
+
+- Responsável pela implementação concreta de acesso a dados e serviços externos.
+- Contém os repositórios que abstraem o acesso ao MongoDB.
+- Implementa a integração com RabbitMQ para mensageria.
+- Gerencia o acesso ao Minio para armazenamento de arquivos.
+
+
+### MotoRent.MessageConsumers:
+
+ - Lida com o processamento assíncrono de mensagens do RabbitMQ.
+ - Contém os consumidores que reagem a eventos do sistema.
+
+
+
+## Por que esta arquitetura?
+
+ - **Separação de Responsabilidades**: Cada camada tem um propósito claro, facilitando a manutenção e evolução do código.
+ - **Desacoplamento**: As camadas superiores não dependem das inferiores, permitindo mudanças na infraestrutura sem afetar a lógica de negócios.
+ - **Testabilidade**: A separação em camadas facilita a escrita de testes unitários e de integração.
+ - **Escalabilidade**: A arquitetura permite escalar diferentes partes do sistema independentemente.
+ - **Flexibilidade**: É possível trocar implementações (por exemplo, mudar o banco de dados) com mínimo impacto no restante do sistema.
+
+## Tratamento de Erros e Logging
+ **Middleware de Tratamento de Erros**
+ - Implementamos um middleware personalizado para interceptar e tratar exceções de forma global. Este middleware:
+
+ - Captura exceções não tratadas em toda a aplicação.
+ - Formata as respostas de erro de maneira consistente.
+ - Registra detalhes do erro usando Serilog para facilitar a depuração.
+
+**Serilog**
+ - Utilizamos o Serilog para logging estruturado. As principais vantagens incluem:
+
+ - Logs estruturados que facilitam a análise e busca.
+Configuração flexível para diferentes níveis de log e destinos (console, arquivo, etc.).
+Integração com várias plataformas de monitoramento.
+
+ - A configuração do Serilog está no Program.cs, permitindo logs detalhados em diferentes ambientes (desenvolvimento, produção).
+
 ## Setup do Ambiente
 
 Antes de rodar a aplicação, você precisa configurar o ambiente Docker. Todo o setup de infraestrutura está definido no arquivo `docker-compose.yml`. Para facilitar o gerenciamento de credenciais e variáveis de ambiente, estamos utilizando um arquivo `.env`. Ele contém as configurações sensíveis, como credenciais de acesso aos serviços Docker (MongoDB, RabbitMQ, Minio, etc.).

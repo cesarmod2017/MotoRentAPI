@@ -7,6 +7,7 @@ using MotoRent.Application.Services;
 using MotoRent.Infrastructure.Data;
 using MotoRent.Infrastructure.Data.Config;
 using MotoRent.Infrastructure.Data.Interfaces;
+using MotoRent.MessageConsumers.Services;
 
 namespace MotoRent.IntegrationTests
 {
@@ -28,6 +29,7 @@ namespace MotoRent.IntegrationTests
                 services.AddScoped<IMotorcycleService, MotorcycleService>();
                 services.AddScoped<IDeliverymanService, DeliverymanService>();
                 services.AddScoped<IRentalService, RentalService>();
+                services.AddScoped<IMessageService, RabbitMQService>();
 
                 services.AddScoped<IJwtService, JwtService>();
 
